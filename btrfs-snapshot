@@ -1,0 +1,48 @@
+#!/bin/bash
+
+BTRFS=$(which btrfs)
+if [[ "$BTRFS" == "" ]]; then
+    echo "Missing btrfs command."
+    exit 1
+fi
+
+FIND=$(which find)
+if [[ $FIND == "" ]]; then
+    echo "Missing find command."
+    exit 1
+fi
+
+SORT=$(which sort)
+if [[ $SORT == "" ]]; then
+    echo "Missing sort command."
+    exit 1
+fi
+
+SOURCE="$1"
+TARGET="$2"
+COUNT="$3"
+
+if [ -z "$SOURCE" ]; then
+    echo "SOURCE missing."
+    exit 1
+fi
+
+if [ -z "$TARGET" ]; then
+    echo "TARGET missing."
+    exit 1
+fi
+
+if [ -z "$COUNT" ]; then
+    COUNT=4
+fi
+
+snapname="$(basename "${SOURCE}")"
+
+$BTRFS subvolume snapshot -r "${SOURCE}" "${TARGET}/@${snapname}--$(date +%s-%Y-%m-%d)"
+
+mapfile -t snapshots_to_remove < <($FIND "${TARGET}" -maxdepth 1 | $SORT | grep "@${snapname}" | head -n -${COUNT})
+for snapshot in "${snapshots_to_remove[@]}"; do
+    cmd="${BTRFS} subvolume delete \"$snapshot\""
+    echo $cmd
+    eval $cmd
+done
